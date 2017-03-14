@@ -1,86 +1,53 @@
-var bodyParser = require('body-parser');
-var urlencodedParser = bodyParser.urlencoded({ extended: false });
-var usersModel = require('../models/users');
+let bodyParser = require('body-parser');
+// let urlencodedParser = bodyParser.urlencoded({ extended: false });
+let usersModel = require('../models/users');
 
-function sessionHandler(req, validCookie, invalidCookie, noCookie) {
-  if (req.session && req.session.email) {
-    if (usersModel.validateEmail(req.session.email)) {
-      validCookie();
-    } else {
-      invalidCookie();
-    }
+function ifSession(req, success, failure) {
+  let user = req.session;
+  if (usersModel.validateEmail(user.email)) {
+    success();
   } else {
-    noCookie();
+    failure();
   }
+}
+
+function redirectIfSession(req, res, redirect) {
+  ifSession(req, () => res.redirect('/home'), () => res.render(redirect));
 }
 
 module.exports = function(app) {
   app.get('/', function(req, res) {
-    sessionHandler(req, function() {
-      res.redirect('/home');
-    }, function() {
-      res.session.reset();
-      res.redirect('/login');//eventually add a home page with fun stuffs
-    }, function() {
-      res.redirect('/login');
-    });
+    ifSession(req, () => res.redirect('/home'),
+      () => res.redirect('/login'));
   });
-
-  app.get('/register', function(req, res) {
-    sessionHandler(req, function() {
-      res.redirect('/home');
-    }, function() {
-      req.session.destroy();req.session = null;
-      res.render('register');
-    }, function() {
-      res.render('register');
-    });
-  });
-
-  app.post('/register', urlencodedParser, function(req, res) {
-    var newUser = req.body;
-    usersModel.createUser(newUser.email, newUser.password);
-    console.log(usersModel.getUsers());
-    req.session.destroy();req.session = {};
-    req.session.email = newUser.email; //need more info?
-    res.redirect('/home');
-  });
-
   app.get('/login', function(req, res) {
-    sessionHandler(req, function() {
-      res.redirect('/home');
-    }, function() {
-      req.session.destroy();req.session = null;
-      res.render('login');
-    }, function() {
-      res.render('login');
-    });
+    redirectIfSession(req, res, 'login');
   });
-
-
-  app.post('/login', urlencodedParser, function(req, res) {
-    var user = req.body;
-    console.log(user.email + ", " + user.password);
+  app.post('/login', function(req, res) {
+    let user = req.body;
     if (usersModel.validateEmailPassword(user.email, user.password)) {
-      console.log('found user');
-      req.session.destroy();req.session = {};
-      req.session.email = user.email; //change to store more info?
+      req.session.email = user.email;
       res.redirect('/home');
     } else {
-      console.log('invalid input');
-      res.redirect('/login');
+      res.redirect('/login')
     }
-    console.log(usersModel.getUsers());
   });
-
+  app.get('/logout', function(req, res) {
+    res.redirect('/login');
+  });
+  app.get('/register', function(req, res) {
+    redirectIfSession(req, res, 'register');
+  });
+  app.post('/register', function(req, res) {
+    let newUser = req.body;
+    if (usersModel.createUser(newUser.email, newUser.password)) {
+      req.session.email = newUser.email;
+      res.redirect('/home');
+    } else {
+      res.redirect('/register');
+    }
+  });
   app.get('/home', function(req, res) {
-    sessionHandler(req, function() {
-      res.render('home');
-    }, function() {
-      req.session.destroy();req.session = null;
-      res.redirect('/login');
-    }, function() {
-      res.redirect('/login');
-    });
+    ifSession(req, () => res.render('home'), () => res.redirect('/login'));
   });
 };
