@@ -33,6 +33,7 @@ module.exports = function(app) {
     }
   });
   app.get('/logout', function(req, res) {
+    delete req.session.email;
     res.redirect('/login');
   });
   app.get('/register', function(req, res) {
